@@ -2,233 +2,188 @@
 <html lang="sr">
 <head>
 <meta charset="UTF-8">
-<title>MOJ BIOSKOP v6</title>
+<title>BIOSKOP SHARE v6.2</title>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <style>
-body{
-background:#0b0b0b;
-color:#00ff9c;
-font-family:Arial;
-text-align:center;
-padding:20px;
+body {
+    background:#0b0b0b;
+    color:#00ff9c;
+    font-family:Arial, sans-serif;
+    text-align:center;
+    padding:20px;
 }
 
-.card{
-max-width:900px;
-margin:auto;
-padding:25px;
-border:2px solid #00ff9c;
-border-radius:14px;
-background:#111;
-box-shadow:0 0 25px #00ff9c;
+.card {
+    max-width:900px;
+    margin:auto;
+    padding:25px;
+    border:2px solid #00ff9c;
+    border-radius:14px;
+    background:#111;
+    box-shadow:0 0 25px #00ff9c;
 }
 
-input{
-padding:10px;
-background:black;
-border:1px solid #00ff9c;
-color:#00ff9c;
-margin:5px;
+input {
+    padding:10px;
+    margin:5px;
+    background:black;
+    border:1px solid #00ff9c;
+    color:#00ff9c;
 }
 
-button{
-padding:10px 18px;
-cursor:pointer;
-font-weight:bold;
-margin:5px;
+button {
+    padding:10px 18px;
+    margin:5px;
+    cursor:pointer;
+    font-weight:bold;
 }
 
-.host{
-background:#00ff9c;
-border:none;
-color:black;
+.host { background:#00ff9c; border:none; color:black; }
+.join { background:black; border:1px solid #00ff9c; color:#00ff9c; }
+
+video {
+    width:100%;
+    margin-top:20px;
+    background:black;
+    border-radius:6px;
+    border:1px solid #333;
 }
 
-.join{
-background:black;
-border:1px solid #00ff9c;
-color:#00ff9c;
-}
-
-video{
-width:100%;
-margin-top:20px;
-background:black;
-border:1px solid #333;
-border-radius:8px;
-}
-
-#log{
-height:150px;
-overflow:auto;
-background:black;
-padding:10px;
-border:1px solid #333;
-margin-top:15px;
-text-align:left;
-font-size:13px;
+#log {
+    height:150px;
+    overflow:auto;
+    background:black;
+    border:1px solid #333;
+    margin-top:15px;
+    padding:10px;
+    text-align:left;
+    font-size:13px;
 }
 </style>
 </head>
 
 <body>
-
 <div class="card">
-<h2>🎬 BIOSKOP SHARE v6</h2>
+<h2>🎬 BIOSKOP SHARE v6.2</h2>
 
 <div>
-<input id="hostId" placeholder="Ime kanala">
-<button class="host" onclick="startHost()">HOST</button>
+<input id="hostId" placeholder="Ime kanala (host)">
+<button class="host" onclick="startHost()">Pokreni stream</button>
 </div>
 
 <div>
 <input id="joinId" placeholder="Ime hosta">
-<button class="join" onclick="joinHost()">JOIN</button>
+<button class="join" onclick="joinHost()">Poveži se</button>
 </div>
 
 <div id="log"></div>
-
 <video id="video" autoplay playsinline controls></video>
 </div>
 
 <script>
-const video = document.getElementById("video")
-const logBox = document.getElementById("log")
+const video = document.getElementById("video");
+const logBox = document.getElementById("log");
 
-let peer
-let call
-let stream
-let reconnectTimer
+let peer;
+let call;
+let stream;
 
 function log(msg){
-logBox.innerHTML += "> " + msg + "<br>"
-logBox.scrollTop = logBox.scrollHeight
+    logBox.innerHTML += "> " + msg + "<br>";
+    logBox.scrollTop = logBox.scrollHeight;
 }
 
 const config = {
-config:{
-iceServers:[
-{urls:"stun:stun.l.google.com:19302"},
-{urls:"stun:stun1.l.google.com:19302"},
-{urls:"stun:global.stun.twilio.com:3478"},
-{
-urls:"turn:openrelay.metered.ca:80",
-username:"openrelayproject",
-credential:"openrelayproject"
-},
-{
-urls:"turn:openrelay.metered.ca:443",
-username:"openrelayproject",
-credential:"openrelayproject"
-}
-]
-},
-debug:1
-}
+    config:{
+        iceServers:[
+            {urls:"stun:stun.l.google.com:19302"},
+            {urls:"stun:stun1.l.google.com:19302"},
+            {
+                urls:"turn:openrelay.metered.ca:80",
+                username:"openrelayproject",
+                credential:"openrelayproject"
+            },
+            {
+                urls:"turn:openrelay.metered.ca:443",
+                username:"openrelayproject",
+                credential:"openrelayproject"
+            }
+        ]
+    },
+    debug:1
+};
 
+// ---------------- HOST -----------------
 async function startHost(){
-const id = document.getElementById("hostId").value
-if(!id) return alert("Unesi ime kanala")
+    const id = document.getElementById("hostId").value;
+    if(!id){ alert("Upiši ime kanala"); return; }
 
-peer = new Peer(id, config)
+    log("Pokrećem screen share...");
+    try{
+        stream = await navigator.mediaDevices.getDisplayMedia({
+            video:{ width:1920, height:1080, frameRate:60 },
+            audio:true
+        });
+        video.srcObject = stream;
+        log("Screen share aktivan");
 
-peer.on("open", async () => {
-log("Kanal otvoren: " + id)
+    }catch(e){
+        log("Dozvoli screen share!");
+        return;
+    }
 
-try{
-stream = await navigator.mediaDevices.getDisplayMedia({
-video:{
-width:{ideal:1920},
-height:{ideal:1080},
-frameRate:60
-},
-audio:true
-})
+    log("Pokrećem server...");
+    peer = new Peer(id, config);
 
-video.srcObject = stream
-log("1080p stream pokrenut")
+    peer.on("open", ()=>log("Kanal otvoren: " + id));
 
-}catch(e){
-log("Dozvoli screen share")
-return
+    peer.on("call", incomingCall => {
+        log("Gledalac se povezao");
+        call = incomingCall;
+        call.answer(stream);
+        optimizeBitrate(call);
+        call.on("close", ()=>log("Gledalac je prekinuo vezu"));
+    });
+
+    peer.on("error", e => log("Greška: " + e.type));
 }
 
-peer.on("call", incomingCall => {
-log("Gledalac se povezao")
-
-call = incomingCall
-call.answer(stream)
-
-optimizeBitrate(call)
-
-call.on("close", () => {
-log("Gledalac se diskonektovao")
-})
-})
-
-stream.getVideoTracks()[0].onended = () => {
-log("Share zaustavljen")
-peer.destroy()
-}
-})
-
-peer.on("error", err => log("Error: " + err.type))
-}
-
-function joinHost(){
-const id = document.getElementById("joinId").value
-if(!id) return alert("Unesi host ID")
-
-peer = new Peer(undefined, config)
-
-peer.on("open", () => {
-connectToHost(id)
-})
-
-peer.on("error", e => log("Greška: " + e.type))
-}
-
-function connectToHost(id){
-log("Povezujem se...")
-
-call = peer.call(id, new MediaStream())
-
-call.on("stream", remoteStream => {
-video.srcObject = remoteStream
-log("Veza stabilna")
-
-clearTimeout(reconnectTimer)
-})
-
-call.on("close", () => {
-log("Veza izgubljena, reconnect...")
-retryConnect(id)
-})
-}
-
-function retryConnect(id){
-clearTimeout(reconnectTimer)
-reconnectTimer = setTimeout(()=>{
-connectToHost(id)
-},3000)
-}
-
+// Povećava bitrate i frame rate na 1080p 60fps
 function optimizeBitrate(call){
-setTimeout(()=>{
-const pc = call.peerConnection
-pc.getSenders().forEach(sender=>{
-if(sender.track && sender.track.kind === "video"){
-let params = sender.getParameters()
-if(!params.encodings) params.encodings=[{}]
-params.encodings[0].maxBitrate = 10000000
-params.encodings[0].maxFramerate = 60
-sender.setParameters(params)
+    setTimeout(()=>{
+        const pc = call.peerConnection;
+        pc.getSenders().forEach(sender=>{
+            if(sender.track && sender.track.kind === "video"){
+                let params = sender.getParameters();
+                if(!params.encodings) params.encodings=[{}];
+                params.encodings[0].maxBitrate = 10000000; // 10 Mbps
+                params.encodings[0].maxFramerate = 60;
+                sender.setParameters(params);
+            }
+        });
+    },2000);
 }
-})
-},2000)
+
+// ---------------- GLEDALEC -----------------
+function joinHost(){
+    const id = document.getElementById("joinId").value;
+    if(!id){ alert("Upiši host ID"); return; }
+
+    log("Povezujem se...");
+    peer = new Peer(undefined, config);
+
+    peer.on("open", ()=>{
+        call = peer.call(id, null); // ne šalje svoj stream
+        call.on("stream", remoteStream=>{
+            video.srcObject = remoteStream;
+            log("Stream primljen!");
+        });
+        call.on("error", e=>log("Ne može da se poveže: " + e.type));
+    });
+
+    peer.on("error", e=>log("Greška: " + e.type));
 }
 </script>
-
 </body>
 </html>
