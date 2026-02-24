@@ -2,115 +2,121 @@
 <html lang="sr">
 <head>
     <meta charset="UTF-8">
-    <title>CINEMA ULTIMATE - Auto Connect</title>
+    <title>CINEMA PRO - Relay Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #0f0f10; color: #e1e1e1; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
-        .container { max-width: 900px; margin: auto; background: #1a1b1e; padding: 25px; border-radius: 15px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .box { background: #25262b; padding: 20px; border-radius: 10px; margin: 15px 0; border: 1px solid #3d3e42; }
-        input { padding: 12px; width: 60%; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; margin-bottom: 10px; }
-        button { padding: 12px 25px; cursor: pointer; font-weight: bold; border: none; border-radius: 5px; transition: 0.3s; }
-        .btn-h { background: #3ba55c; color: white; }
-        .btn-g { background: #5865f2; color: white; }
-        button:hover { opacity: 0.8; transform: scale(1.02); }
-        #log { font-family: 'Consolas', monospace; font-size: 13px; color: #00ff00; text-align: left; padding: 15px; background: #000; border-radius: 8px; height: 120px; overflow-y: auto; border: 1px solid #222; }
-        video { width: 100%; border-radius: 8px; background: #000; margin-top: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.8); }
-        h2 { color: #fff; margin-top: 0; }
+        body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; text-align: center; padding: 20px; }
+        .main-card { background: #111; border: 2px solid #00ff41; border-radius: 10px; padding: 20px; max-width: 800px; margin: auto; box-shadow: 0 0 20px #00ff41; }
+        .input-group { margin: 20px 0; display: flex; justify-content: space-around; gap: 10px; }
+        input { background: #000; border: 1px solid #00ff41; color: #00ff41; padding: 10px; width: 60%; }
+        button { cursor: pointer; padding: 10px 20px; font-weight: bold; text-transform: uppercase; }
+        .btn-host { background: #00ff41; color: #000; border: none; }
+        .btn-join { background: #000; color: #00ff41; border: 1px solid #00ff41; }
+        #status-log { background: #000; border: 1px solid #333; height: 150px; overflow-y: auto; text-align: left; padding: 10px; font-size: 13px; margin-top: 10px; color: #888; }
+        video { width: 100%; margin-top: 20px; border: 1px solid #333; background: #000; }
+        .highlight { color: #fff; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>🎥 Bioskop Kontrolna Tabla</h2>
-
-    <div style="display: flex; gap: 20px; justify-content: center;">
-        <div class="box" style="flex: 1;">
-            <strong>1. HOST (Ti)</strong><br><br>
-            <input type="text" id="myId" placeholder="Ime sobe (npr: lulehbo)">
-            <button class="btn-h" onclick="startHost()">POKRENI BIOSKOP</button>
+<div class="main-card">
+    <h2>[ BIOSKOP SISTEM v4.0 ]</h2>
+    
+    <div class="input-group">
+        <div>
+            <p>1. KREIRAJ KANAL</p>
+            <input type="text" id="myId" placeholder="Ime (npr: lulehbo)">
+            <button class="btn-host" onclick="startHost()">POKRENI</button>
         </div>
-
-        <div class="box" style="flex: 1;">
-            <strong>2. GOST (Drugar)</strong><br><br>
-            <input type="text" id="targetId" placeholder="Ime sobe drugara">
-            <button class="btn-g" onclick="startGuest()">PRIKLJUČI SE</button>
+        <div>
+            <p>2. PRIDRUŽI SE</p>
+            <input type="text" id="targetId" placeholder="Ime kanala">
+            <button class="btn-join" onclick="startGuest()">POVEŽI SE</button>
         </div>
     </div>
 
-    <div class="box">
-        <strong>Status Povezivanja:</strong>
-        <div id="log">Sistem spreman. Čekam komandu...</div>
-    </div>
-
+    <div id="status-log">Sistem spreman... Čekam unos.</div>
+    
     <video id="v" autoplay playsinline controls></video>
 </div>
 
 <script>
-    const logBox = document.getElementById('log');
-    const log = (msg) => { logBox.innerHTML += "<br>> " + msg; logBox.scrollTop = logBox.scrollHeight; };
+    const status = document.getElementById('status-log');
+    const video = document.getElementById('v');
     let peer = null;
-    let localStream = null;
 
-    const config = {
-        config: { 
+    // KONFIGURACIJA SA TURN SERVEROM ZA ZAOBILAŽENJE BLOKADA
+    const peerConfig = {
+        config: {
             'iceServers': [
                 { 'urls': 'stun:stun.l.google.com:19302' },
-                { 'urls': 'stun:stun1.l.google.com:19302' }
-            ] 
-        }
+                { 'urls': 'stun:stun1.l.google.com:19302' },
+                { 
+                    'urls': 'turn:openrelay.metered.ca:80', 
+                    'username': 'openrelayproject', 
+                    'credential: 'openrelayproject' 
+                }
+            ]
+        },
+        debug: 3
     };
+
+    function log(msg) {
+        status.innerHTML += `<br>> ${msg}`;
+        status.scrollTop = status.scrollHeight;
+    }
 
     async function startHost() {
         const id = document.getElementById('myId').value;
-        if(!id) return alert("Moraš uneti ime kanala!");
-        
-        peer = new Peer(id, config);
-        log("Pravim sobu: " + id);
+        if(!id) return alert("Unesi ime kanala!");
 
-        peer.on('open', async () => {
-            log("Soba otvorena! Sada izaberi HBO prozor...");
+        peer = new Peer(id, peerConfig);
+        log("Inicijalizacija servera...");
+
+        peer.on('open', async (openedId) => {
+            log(`KANAL OTVOREN: <span class="highlight">${openedId}</span>`);
             try {
-                localStream = await navigator.mediaDevices.getDisplayMedia({ 
-                    video: { frameRate: 60 }, 
-                    audio: true 
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { frameRate: 30 },
+                    audio: true
                 });
-                document.getElementById('v').srcObject = localStream;
-                log("Strim je aktivan! Drugar može da se poveže.");
+                video.srcObject = stream;
+                log("Strim pokrenut. Čekam drugara...");
 
-                // AUTOMATSKO PRIHVATANJE POZIVA - TVOJ ZAHTEV
                 peer.on('call', call => {
-                    log("Neko se povezuje... Prihvatam automatski!");
-                    call.answer(localStream);
-                    
-                    call.on('stream', () => {
-                        // Ovde ne radimo ništa, mi samo šaljemo
-                    });
+                    log("Detektovan poziv! Šaljem podatke...");
+                    call.answer(stream);
                 });
-
-            } catch(e) { log("Greška: Nisi dozvolio deljenje ekrana."); }
+            } catch(e) {
+                log("GREŠKA: Nisi dozvolio deljenje ekrana.");
+            }
         });
 
-        peer.on('error', e => log("Greška: " + e.type));
+        peer.on('error', e => log("GREŠKA: " + e.type));
     }
 
     function startGuest() {
         const tid = document.getElementById('targetId').value;
         if(!tid) return alert("Unesi ime hosta!");
-        
-        log("Tražim hosta: " + tid + "...");
-        peer = new Peer(config);
-        
+
+        log("Pokušavam povezivanje sa: " + tid);
+        peer = new Peer(peerConfig);
+
         peer.on('open', () => {
             const call = peer.call(tid, null);
-            log("Zahtev za povezivanje poslat...");
+            log("Zahtev poslat preko relej servera...");
 
             call.on('stream', remoteStream => {
-                log("POVEZANO! Slika stiže...");
-                document.getElementById('v').srcObject = remoteStream;
+                log("<span class="highlight">VEZA USPEŠNA! Uživaj u filmu.</span>");
+                video.srcObject = remoteStream;
             });
+
+            setTimeout(() => {
+                if(!video.srcObject) log("Vreme isteklo. Host nije odgovorio.");
+            }, 15000);
         });
 
-        peer.on('error', e => log("Greška kod gosta: " + e.type));
+        peer.on('error', e => log("GREŠKA GOSTA: " + e.type));
     }
 </script>
 </body>
