@@ -2,95 +2,115 @@
 <html lang="sr">
 <head>
     <meta charset="UTF-8">
-    <title>CINEMA DEBUG MODE</title>
+    <title>CINEMA ULTIMATE - Auto Connect</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #121212; color: #fff; font-family: sans-serif; text-align: center; }
-        .box { background: #1e1e1e; padding: 20px; border-radius: 10px; margin: 10px auto; width: 80%; max-width: 500px; border: 1px solid #333; }
-        input { padding: 10px; width: 70%; margin-bottom: 10px; background: #000; color: #fff; border: 1px solid #555; }
-        button { padding: 10px 20px; cursor: pointer; font-weight: bold; border: none; border-radius: 5px; }
-        .btn-h { background: #2ecc71; color: #000; }
-        .btn-g { background: #3498db; color: #fff; }
-        #log { font-family: monospace; font-size: 12px; color: #aaa; text-align: left; padding: 10px; background: #000; border-radius: 5px; height: 100px; overflow-y: auto; margin-top: 10px; }
-        video { width: 90%; max-width: 800px; background: #000; margin-top: 20px; border: 2px solid #2ecc71; }
+        body { background: #0f0f10; color: #e1e1e1; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: #1a1b1e; padding: 25px; border-radius: 15px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .box { background: #25262b; padding: 20px; border-radius: 10px; margin: 15px 0; border: 1px solid #3d3e42; }
+        input { padding: 12px; width: 60%; border-radius: 5px; border: 1px solid #444; background: #121212; color: #fff; margin-bottom: 10px; }
+        button { padding: 12px 25px; cursor: pointer; font-weight: bold; border: none; border-radius: 5px; transition: 0.3s; }
+        .btn-h { background: #3ba55c; color: white; }
+        .btn-g { background: #5865f2; color: white; }
+        button:hover { opacity: 0.8; transform: scale(1.02); }
+        #log { font-family: 'Consolas', monospace; font-size: 13px; color: #00ff00; text-align: left; padding: 15px; background: #000; border-radius: 8px; height: 120px; overflow-y: auto; border: 1px solid #222; }
+        video { width: 100%; border-radius: 8px; background: #000; margin-top: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.8); }
+        h2 { color: #fff; margin-top: 0; }
     </style>
 </head>
 <body>
 
-    <h1>🎬 Cinema Debugger</h1>
+<div class="container">
+    <h2>🎥 Bioskop Kontrolna Tabla</h2>
 
-    <div class="box">
-        <strong>1. HOST (Ti)</strong><br>
-        <input type="text" id="myId" placeholder="Ime (npr: lule123)">
-        <button class="btn-h" onclick="startHost()">KREIRAJ</button>
+    <div style="display: flex; gap: 20px; justify-content: center;">
+        <div class="box" style="flex: 1;">
+            <strong>1. HOST (Ti)</strong><br><br>
+            <input type="text" id="myId" placeholder="Ime sobe (npr: lulehbo)">
+            <button class="btn-h" onclick="startHost()">POKRENI BIOSKOP</button>
+        </div>
+
+        <div class="box" style="flex: 1;">
+            <strong>2. GOST (Drugar)</strong><br><br>
+            <input type="text" id="targetId" placeholder="Ime sobe drugara">
+            <button class="btn-g" onclick="startGuest()">PRIKLJUČI SE</button>
+        </div>
     </div>
 
     <div class="box">
-        <strong>2. GOST (Drugar)</strong><br>
-        <input type="text" id="targetId" placeholder="Ime hosta">
-        <button class="btn-g" onclick="startGuest()">POVEŽI SE</button>
-    </div>
-
-    <div class="box">
-        <strong>STATUS KONZOLA:</strong>
-        <div id="log">Sistem spreman...</div>
+        <strong>Status Povezivanja:</strong>
+        <div id="log">Sistem spreman. Čekam komandu...</div>
     </div>
 
     <video id="v" autoplay playsinline controls></video>
+</div>
 
 <script>
-    const log = (msg) => { document.getElementById('log').innerHTML += "<br>> " + msg; };
+    const logBox = document.getElementById('log');
+    const log = (msg) => { logBox.innerHTML += "<br>> " + msg; logBox.scrollTop = logBox.scrollHeight; };
     let peer = null;
+    let localStream = null;
 
-    const peerCfg = {
-        config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] },
-        debug: 3 // Ovo će nam reći sve u konzoli
+    const config = {
+        config: { 
+            'iceServers': [
+                { 'urls': 'stun:stun.l.google.com:19302' },
+                { 'urls': 'stun:stun1.l.google.com:19302' }
+            ] 
+        }
     };
 
     async function startHost() {
         const id = document.getElementById('myId').value;
-        if(!id) return alert("Unesi ime!");
+        if(!id) return alert("Moraš uneti ime kanala!");
         
-        peer = new Peer(id, peerCfg);
-        log("Inicijalizacija hosta: " + id);
+        peer = new Peer(id, config);
+        log("Pravim sobu: " + id);
 
         peer.on('open', async () => {
-            log("Soba otvorena! Čekam drugara...");
+            log("Soba otvorena! Sada izaberi HBO prozor...");
             try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                document.getElementById('v').srcObject = stream;
-                log("Strim pokrenut. Podeli link drugaru.");
-                
-                peer.on('call', call => {
-                    log("Drugar te zove! Šaljem sliku...");
-                    call.answer(stream);
+                localStream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: { frameRate: 60 }, 
+                    audio: true 
                 });
-            } catch(e) { log("Greška kod deljenja: " + e); }
+                document.getElementById('v').srcObject = localStream;
+                log("Strim je aktivan! Drugar može da se poveže.");
+
+                // AUTOMATSKO PRIHVATANJE POZIVA - TVOJ ZAHTEV
+                peer.on('call', call => {
+                    log("Neko se povezuje... Prihvatam automatski!");
+                    call.answer(localStream);
+                    
+                    call.on('stream', () => {
+                        // Ovde ne radimo ništa, mi samo šaljemo
+                    });
+                });
+
+            } catch(e) { log("Greška: Nisi dozvolio deljenje ekrana."); }
         });
 
-        peer.on('error', e => log("PEER GREŠKA: " + e.type));
+        peer.on('error', e => log("Greška: " + e.type));
     }
 
     function startGuest() {
         const tid = document.getElementById('targetId').value;
-        log("Pokušavam da nađem: " + tid);
+        if(!tid) return alert("Unesi ime hosta!");
         
-        peer = new Peer(peerCfg);
+        log("Tražim hosta: " + tid + "...");
+        peer = new Peer(config);
         
         peer.on('open', () => {
             const call = peer.call(tid, null);
-            log("Poziv poslat...");
+            log("Zahtev za povezivanje poslat...");
 
-            call.on('stream', s => {
-                log("SLIKA STIGLA! Uživaj.");
-                document.getElementById('v').srcObject = s;
+            call.on('stream', remoteStream => {
+                log("POVEZANO! Slika stiže...");
+                document.getElementById('v').srcObject = remoteStream;
             });
-
-            // Ako se ne javi za 10 sekundi
-            setTimeout(() => { if(!document.getElementById('v').srcObject) log("Nema odgovora od hosta. Proveri ime."); }, 10000);
         });
 
-        peer.on('error', e => log("GREŠKA KOD GOSTA: " + e.type));
+        peer.on('error', e => log("Greška kod gosta: " + e.type));
     }
 </script>
 </body>
