@@ -2,70 +2,27 @@
 <html lang="sr">
 <head>
 <meta charset="UTF-8">
-<title>BIOSKOP SHARE v6.2</title>
+<title>BIOSKOP SHARE v7</title>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <style>
-body {
-    background:#0b0b0b;
-    color:#00ff9c;
-    font-family:Arial, sans-serif;
-    text-align:center;
-    padding:20px;
-}
-
-.card {
-    max-width:900px;
-    margin:auto;
-    padding:25px;
-    border:2px solid #00ff9c;
-    border-radius:14px;
-    background:#111;
-    box-shadow:0 0 25px #00ff9c;
-}
-
-input {
-    padding:10px;
-    margin:5px;
-    background:black;
-    border:1px solid #00ff9c;
-    color:#00ff9c;
-}
-
-button {
-    padding:10px 18px;
-    margin:5px;
-    cursor:pointer;
-    font-weight:bold;
-}
-
+body { background:#0b0b0b; color:#00ff9c; font-family:Arial, sans-serif; text-align:center; padding:20px; }
+.card { max-width:900px; margin:auto; padding:25px; border:2px solid #00ff9c; border-radius:14px; background:#111; box-shadow:0 0 25px #00ff9c; }
+input { padding:10px; margin:5px; background:black; border:1px solid #00ff9c; color:#00ff9c; }
+button { padding:10px 18px; margin:5px; cursor:pointer; font-weight:bold; }
 .host { background:#00ff9c; border:none; color:black; }
 .join { background:black; border:1px solid #00ff9c; color:#00ff9c; }
-
-video {
-    width:100%;
-    margin-top:20px;
-    background:black;
-    border-radius:6px;
-    border:1px solid #333;
-}
-
-#log {
-    height:150px;
-    overflow:auto;
-    background:black;
-    border:1px solid #333;
-    margin-top:15px;
-    padding:10px;
-    text-align:left;
-    font-size:13px;
-}
+video { width:100%; margin-top:20px; background:black; border-radius:6px; border:1px solid #333; }
+#log { height:140px; overflow:auto; background:black; border:1px solid #333; margin-top:15px; padding:10px; text-align:left; font-size:13px; }
+#chat { height:120px; overflow:auto; background:#000; border:1px solid #333; margin-top:10px; padding:10px; text-align:left; font-size:13px; }
+#chatInput { width:70%; padding:8px; background:#111; border:1px solid #00ff9c; color:#00ff9c; }
+#chatBtn { padding:8px 12px; margin-left:5px; cursor:pointer; }
 </style>
 </head>
 
 <body>
 <div class="card">
-<h2>🎬 BIOSKOP SHARE v6.2</h2>
+<h2>🎬 BIOSKOP SHARE v7</h2>
 
 <div>
 <input id="hostId" placeholder="Ime kanala (host)">
@@ -73,83 +30,123 @@ video {
 </div>
 
 <div>
-<input id="joinId" placeholder="Ime hosta">
+<input id="joinId" placeholder="Unesi ID hosta">
 <button class="join" onclick="joinHost()">Poveži se</button>
 </div>
 
 <div id="log"></div>
 <video id="video" autoplay playsinline controls></video>
+
+<h3>💬 Chat</h3>
+<div id="chat"></div>
+<input id="chatInput" placeholder="Unesi poruku...">
+<button id="chatBtn">Pošalji</button>
 </div>
 
 <script>
 const video = document.getElementById("video");
 const logBox = document.getElementById("log");
+const chatBox = document.getElementById("chat");
+const chatInput = document.getElementById("chatInput");
+const chatBtn = document.getElementById("chatBtn");
 
 let peer;
-let call;
+let calls = [];
 let stream;
+let hostIdGlobal;
 
-function log(msg){
-    logBox.innerHTML += "> " + msg + "<br>";
-    logBox.scrollTop = logBox.scrollHeight;
-}
+// ---------------- Log funkcija -----------------
+function log(msg){ logBox.innerHTML += "> " + msg + "<br>"; logBox.scrollTop = logBox.scrollHeight; }
+function chat(msg){ chatBox.innerHTML += msg + "<br>"; chatBox.scrollTop = chatBox.scrollHeight; }
 
+// ---------------- ICE konfiguracija -----------------
 const config = {
-    config:{
-        iceServers:[
-            {urls:"stun:stun.l.google.com:19302"},
-            {urls:"stun:stun1.l.google.com:19302"},
-            {
-                urls:"turn:openrelay.metered.ca:80",
-                username:"openrelayproject",
-                credential:"openrelayproject"
-            },
-            {
-                urls:"turn:openrelay.metered.ca:443",
-                username:"openrelayproject",
-                credential:"openrelayproject"
-            }
-        ]
-    },
-    debug:1
+config:{
+iceServers:[
+{urls:"stun:stun.l.google.com:19302"},
+{urls:"stun:stun1.l.google.com:19302"},
+{urls:"turn:openrelay.metered.ca:80", username:"openrelayproject", credential:"openrelayproject"},
+{urls:"turn:openrelay.metered.ca:443", username:"openrelayproject", credential:"openrelayproject"}
+]
+},
+debug:1
 };
 
 // ---------------- HOST -----------------
 async function startHost(){
-    const id = document.getElementById("hostId").value;
-    if(!id){ alert("Upiši ime kanala"); return; }
+    let userId = document.getElementById("hostId").value || "host";
+    const id = userId + "-" + Date.now(); // Unikatan ID
+    hostIdGlobal = id;
+    log("Kanal će biti: " + id);
 
-    log("Pokrećem screen share...");
     try{
-        stream = await navigator.mediaDevices.getDisplayMedia({
-            video:{ width:1920, height:1080, frameRate:60 },
-            audio:true
-        });
+        stream = await navigator.mediaDevices.getDisplayMedia({ video:{width:1920,height:1080,frameRate:60}, audio:true });
         video.srcObject = stream;
         log("Screen share aktivan");
-
     }catch(e){
         log("Dozvoli screen share!");
         return;
     }
 
-    log("Pokrećem server...");
     peer = new Peer(id, config);
 
     peer.on("open", ()=>log("Kanal otvoren: " + id));
 
-    peer.on("call", incomingCall => {
-        log("Gledalac se povezao");
-        call = incomingCall;
-        call.answer(stream);
-        optimizeBitrate(call);
-        call.on("close", ()=>log("Gledalac je prekinuo vezu"));
+    peer.on("call", incomingCall=>{
+        log("Gledalac se povezao: " + incomingCall.peer);
+        calls.push(incomingCall);
+        incomingCall.answer(stream);
+        optimizeBitrate(incomingCall);
+
+        incomingCall.on("close", ()=>{
+            log("Gledalac prekinuo vezu: " + incomingCall.peer);
+        });
     });
 
-    peer.on("error", e => log("Greška: " + e.type));
+    peer.on("connection", conn=>{
+        log("Chat veza sa: " + conn.peer);
+        conn.on("data", data=>{
+            chat("<b>" + conn.peer + ":</b> " + data);
+        });
+    });
+
+    peer.on("error", e=>log("Greška: " + e.type));
 }
 
-// Povećava bitrate i frame rate na 1080p 60fps
+// ---------------- GLEDALEC -----------------
+function joinHost(){
+    const id = document.getElementById("joinId").value;
+    if(!id){ alert("Unesi host ID"); return; }
+
+    peer = new Peer(undefined, config);
+
+    peer.on("open", ()=>{
+        const call = peer.call(id, null);
+        calls.push(call);
+        call.on("stream", remoteStream=>{
+            video.srcObject = remoteStream;
+            log("Stream primljen!");
+        });
+        call.on("close", ()=>{
+            log("Veza izgubljena, retry...");
+            setTimeout(()=>joinHost(),3000);
+        });
+
+        // Chat konekcija
+        const conn = peer.connect(id);
+        conn.on("open", ()=>{
+            chatBtn.onclick = ()=>{ 
+                const msg = chatInput.value; 
+                if(msg){ conn.send(msg); chat("<b>Ti:</b> " + msg); chatInput.value=""; } 
+            }
+        });
+        conn.on("data", data=>chat("<b>" + conn.peer + ":</b> " + data));
+    });
+
+    peer.on("error", e=>log("Greška: " + e.type));
+}
+
+// ---------------- Optimizacija bitrate/frame rate -----------------
 function optimizeBitrate(call){
     setTimeout(()=>{
         const pc = call.peerConnection;
@@ -157,32 +154,12 @@ function optimizeBitrate(call){
             if(sender.track && sender.track.kind === "video"){
                 let params = sender.getParameters();
                 if(!params.encodings) params.encodings=[{}];
-                params.encodings[0].maxBitrate = 10000000; // 10 Mbps
+                params.encodings[0].maxBitrate = 10000000;
                 params.encodings[0].maxFramerate = 60;
                 sender.setParameters(params);
             }
         });
     },2000);
-}
-
-// ---------------- GLEDALEC -----------------
-function joinHost(){
-    const id = document.getElementById("joinId").value;
-    if(!id){ alert("Upiši host ID"); return; }
-
-    log("Povezujem se...");
-    peer = new Peer(undefined, config);
-
-    peer.on("open", ()=>{
-        call = peer.call(id, null); // ne šalje svoj stream
-        call.on("stream", remoteStream=>{
-            video.srcObject = remoteStream;
-            log("Stream primljen!");
-        });
-        call.on("error", e=>log("Ne može da se poveže: " + e.type));
-    });
-
-    peer.on("error", e=>log("Greška: " + e.type));
 }
 </script>
 </body>
